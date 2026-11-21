@@ -38,6 +38,16 @@ class OrderConfirmationExtension extends Extension
     ];
 
     /**
+     * Order statuses that mean the shop has accepted the order and is fulfilling it. An order in one of these is
+     * never shown as a failed payment, even without a Paid date (manual / invoice orders are often moved on
+     * before the money arrives). Merged into the Order config, so override it as
+     * `SilverShop\Model\Order.fulfilment_statuses`.
+     *
+     * @var string[]
+     */
+    private static array $fulfilment_statuses = ['Processing', 'Sent', 'Complete'];
+
+    /**
      * Unify the post-payment landing. Core's {@link Order::Link()} returns two different URLs (guest ->
      * checkout/order/{ID}, member -> account/order/{ID}); it ends with `$this->extend('updateLink', $link)`,
      * which calls this. We rewrite it to one guest-capable `checkout/complete/{ID}?t={token}` route for
@@ -103,6 +113,11 @@ class OrderConfirmationExtension extends Extension
      *
      *  - paid                          -> success
      *  - unpaid + a pending payment    -> pending   (async iDEAL/Mollie: redirect is a hint, webhook is truth)
+     *  - unpaid + an authorized payment -> success  (pay-later / invoice / bank transfer on a manual gateway, or
+     *                                                card funds reserved for a later capture: the order is placed
+     *                                                and its payment is arranged, nothing went wrong)
+     *  - already moved on by the shop  -> success   (Processing / Sent / Complete without a Paid date, e.g. a
+     *                                                manual order the shop is fulfilling)
      *  - otherwise                     -> failed    (declined / cancelled / no successful attempt)
      *
      * The controller may override this to `cancelled` from an explicit `?status=` on the failure route.
@@ -115,6 +130,13 @@ class OrderConfirmationExtension extends Extension
         }
         if ($order->hasMethod('HasPendingPayments') && $order->HasPendingPayments()) {
             return self::STATE_PENDING;
+        }
+        $fulfilment = (array) $order->config()->get('fulfilment_statuses');
+        if (in_array((string) $order->getField('Status'), $fulfilment, true)) {
+            return self::STATE_SUCCESS;
+        }
+        if ($order->Payments()->filter('Status', 'Authorized')->exists()) {
+            return self::STATE_SUCCESS;
         }
 
         return self::STATE_FAILED;

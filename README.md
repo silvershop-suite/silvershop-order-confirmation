@@ -22,7 +22,9 @@ module fixes all of that.
    receipt-email link then work **without a session** and **across devices**, alongside the existing
    session/member access.
 3. **Status-aware rendering.** One page with **success / pending / failed / cancelled** variants, resolved from
-   existing primitives: `Order::IsPaid()` → success, `Payable::HasPendingPayments()` → pending, otherwise
+   existing primitives: `Order::IsPaid()` → success, `Payable::HasPendingPayments()` → pending, an
+   `Authorized` payment (pay-by-invoice / bank transfer on a manual gateway, or reserved card funds) or an order
+   the shop already moved to Processing / Sent / Complete (`Order.fulfilment_statuses`) → success, otherwise
    failed/cancelled. **Pending never claims success** — asynchronous payments show a neutral "confirming" state
    (the redirect is a hint; the webhook is the truth) with a lightweight `checkout/status/{ID}` JSON poll (and a
    `<meta refresh>` fallback) to re-check.

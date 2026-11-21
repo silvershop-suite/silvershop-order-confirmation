@@ -126,6 +126,47 @@ class OrderConfirmationExtensionTest extends SapphireTest
         $this->assertSame('failed', $order->getConfirmationState());
     }
 
+    public function testAuthorizedManualPaymentIsSuccessNotFailed(): void
+    {
+        // Pay-by-invoice / bank transfer: the Manual gateway authorizes, the order stays Unpaid until the money
+        // arrives. The customer placed the order fine, so the confirmation must not say the payment failed.
+        $order = Order::create();
+        $order->Status = 'Unpaid';
+        $order->write();
+
+        $payment = Payment::create();
+        $payment->Gateway = 'Manual';
+        $payment->Status = 'Authorized';
+        $payment->write();
+        $order->Payments()->add($payment);
+
+        $this->assertSame('success', $order->getConfirmationState());
+    }
+
+    public function testVoidedPaymentStillFails(): void
+    {
+        $order = Order::create();
+        $order->Status = 'Unpaid';
+        $order->write();
+
+        $payment = Payment::create();
+        $payment->Gateway = 'Manual';
+        $payment->Status = 'Void';
+        $payment->write();
+        $order->Payments()->add($payment);
+
+        $this->assertSame('failed', $order->getConfirmationState());
+    }
+
+    public function testOrderTheShopIsFulfillingIsSuccess(): void
+    {
+        $order = Order::create();
+        $order->Status = 'Processing';
+        $order->write();
+
+        $this->assertSame('success', $order->getConfirmationState());
+    }
+
     public function testDisplayStatusMapsUnpaidPendingToPending(): void
     {
         $order = Order::create();
